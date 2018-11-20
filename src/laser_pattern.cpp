@@ -262,13 +262,7 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
     edges_centroid.z =  accz/it->indices.size();
     if(DEBUG) ROS_INFO("Centroid %f %f %f", edges_centroid.x, edges_centroid.y, edges_centroid.z);
   }
-  pcl::PointCloud<pcl::PointXYZ>::Ptr edges_centroid_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-  edges_centroid_cloud->push_back(edges_centroid);
 
-  sensor_msgs::PointCloud2 range_ros2;
-  pcl::toROSMsg(*edges_centroid_cloud, range_ros2);
-  range_ros2.header = laser_cloud->header;
-  debug_pub.publish(range_ros2);
 
   // Extract circles
   pcl::ModelCoefficients::Ptr coefficients3 (new pcl::ModelCoefficients);
@@ -300,6 +294,9 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
   std::vector<pcl::PointXYZ> centroid_cloud_inliers;
   bool valid = true;
 
+
+  pcl::PointCloud<pcl::PointXYZ>::Ptr found_centroid_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
   if(DEBUG) ROS_INFO("[Laser] Searching for points in cloud of size %lu", copy_cloud->points.size());
   while ((copy_cloud->points.size()+centroid_cloud_inliers.size()) > 3 && found_centers.size()<4 && copy_cloud->points.size()){
     circle_segmentation.setInputCloud (copy_cloud);
@@ -320,6 +317,11 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
     center.x = *coefficients3->values.begin();
     center.y = *(coefficients3->values.begin()+1);
     center.z = zcoord_xyplane;
+
+
+    found_centroid_cloud->push_back(center);
+
+
     // Make sure there is no circle at the center of the pattern or far away from it
     double centroid_distance = sqrt(pow(fabs(edges_centroid.x-center.x),2) + pow(fabs(edges_centroid.y-center.y),2));
      if(DEBUG) ROS_INFO("Distance to centroid %f", centroid_distance);
@@ -352,6 +354,14 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
 //      }
 //      // if(DEBUG) ROS_INFO("Remaining inliers %lu", centroid_cloud_inliers.size());
     }
+
+    edges_centroid.z = zcoord_xyplane;
+    found_centroid_cloud->push_back(edges_centroid);
+
+    sensor_msgs::PointCloud2 range_ros2;
+    pcl::toROSMsg(*found_centroid_cloud, range_ros2);
+    range_ros2.header = laser_cloud->header;
+    debug_pub.publish(range_ros2);
 
     if (valid){
       // if(DEBUG) ROS_INFO("Valid circle found");
@@ -410,7 +420,7 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
   pcl::PointCloud<pcl::PointXYZ>::Ptr centers_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
   // Compute circles centers
-  getCenterClusters(cumulative_cloud, centers_cloud, cluster_size_, nFrames/2, nFrames);
+  getCenterClusters(cumulative_cloud, centers_cloud, cluster_size_, nFrames/7, nFrames);
   if (centers_cloud->points.size()>4){
     getCenterClusters(cumulative_cloud, centers_cloud, cluster_size_, 3.0*nFrames/4.0, nFrames);
   }
