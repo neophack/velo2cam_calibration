@@ -111,19 +111,37 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
   image.copyTo(imageCopy);
   sensor_msgs::CameraInfoPtr cinfo(new sensor_msgs::CameraInfo(*left_info));
   image_geometry::PinholeCameraModel cam_model_;
-  cam_model_.fromCameraInfo(cinfo);
+
+  // This is used for perform the projection on the unrectified image
+  // using the PinholeCameraModel project3dToPixel method
+  sensor_msgs::CameraInfo cinfoK;
+  cinfoK.P[0] = cinfo->K[0];
+  cinfoK.P[1] = cinfo->K[1];
+  cinfoK.P[2] = cinfo->K[2];
+  cinfoK.P[3] = 0;
+  cinfoK.P[4] = cinfo->K[3];
+  cinfoK.P[5] = cinfo->K[4];
+  cinfoK.P[6] = cinfo->K[5];
+  cinfoK.P[7] = 0;
+  cinfoK.P[8] = cinfo->K[6];
+  cinfoK.P[9] = cinfo->K[7];
+  cinfoK.P[10] = cinfo->K[8];
+  cinfoK.P[11] = 1;
+  cam_model_.fromCameraInfo(cinfoK);
 
   // TODO Not needed at each frame -> Move it to separate callback
   Mat cameraMatrix(3,3, CV_32F);
-  cameraMatrix.at<float>(0, 0) = cinfo->P[0];
-  cameraMatrix.at<float>(0, 1) = cinfo->P[1];
-  cameraMatrix.at<float>(0, 2) = cinfo->P[2];
-  cameraMatrix.at<float>(1, 0) = cinfo->P[4];
-  cameraMatrix.at<float>(1, 1) = cinfo->P[5];
-  cameraMatrix.at<float>(1, 2) = cinfo->P[6];
-  cameraMatrix.at<float>(2, 0) = cinfo->P[8];
-  cameraMatrix.at<float>(2, 1) = cinfo->P[9];
-  cameraMatrix.at<float>(2, 2) = cinfo->P[10];
+  // Note that camera matrix is K, not P; both are interchangeable only
+  // if D is zero
+  cameraMatrix.at<float>(0, 0) = cinfo->K[0];
+  cameraMatrix.at<float>(0, 1) = cinfo->K[1];
+  cameraMatrix.at<float>(0, 2) = cinfo->K[2];
+  cameraMatrix.at<float>(1, 0) = cinfo->K[3];
+  cameraMatrix.at<float>(1, 1) = cinfo->K[4];
+  cameraMatrix.at<float>(1, 2) = cinfo->K[5];
+  cameraMatrix.at<float>(2, 0) = cinfo->K[6];
+  cameraMatrix.at<float>(2, 1) = cinfo->K[7];
+  cameraMatrix.at<float>(2, 2) = cinfo->K[8];
 
   Mat distCoeffs(1, cinfo->D.size(), CV_32F);
   for(int i=0; i<cinfo->D.size(); i++)
@@ -265,25 +283,12 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
 
 
       if(DEBUG) { // Draw centers
-        cv::Point3d pt_circle1(centers_cloud->at(0).x, centers_cloud->at(0).y, centers_cloud->at(0).z);
-        cv::Point2d uv_circle1;
-        uv_circle1 = cam_model_.project3dToPixel(pt_circle1);
-        circle(imageCopy, uv_circle1, 2, Scalar(255, 0, 255), -1);
-
-        cv::Point3d pt_circle2(centers_cloud->at(1).x, centers_cloud->at(1).y, centers_cloud->at(1).z);
-        cv::Point2d uv_circle2;
-        uv_circle2 = cam_model_.project3dToPixel(pt_circle2);
-        circle(imageCopy, uv_circle2, 2, Scalar(255, 0, 255), -1);
-
-        cv::Point3d pt_circle3(centers_cloud->at(2).x, centers_cloud->at(2).y, centers_cloud->at(2).z);
-        cv::Point2d uv_circle3;
-        uv_circle3 = cam_model_.project3dToPixel(pt_circle3);
-        circle(imageCopy, uv_circle3, 2, Scalar(255, 0, 255), -1);
-
-        cv::Point3d pt_circle4(centers_cloud->at(3).x, centers_cloud->at(3).y, centers_cloud->at(3).z);
-        cv::Point2d uv_circle4;
-        uv_circle4 = cam_model_.project3dToPixel(pt_circle4);
-        circle(imageCopy, uv_circle4, 2, Scalar(255, 0, 255), -1);
+        for(int i=0; i <16; i++){
+          cv::Point3d pt_circle1(centers_cloud->at(i).x, centers_cloud->at(i).y, centers_cloud->at(i).z);
+          cv::Point2d uv_circle1;
+          uv_circle1 = cam_model_.project3dToPixel(pt_circle1);
+          circle(imageCopy, uv_circle1, 2, Scalar(255, 0, 255), -1);
+        }
       }
 
       // Compute centers clusters
@@ -317,6 +322,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
   }
 
   if(DEBUG){
+    cv::namedWindow("out", CV_WINDOW_NORMAL);
     cv::imshow("out", imageCopy);
     cv::waitKey(1);
   }
