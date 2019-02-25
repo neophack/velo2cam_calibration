@@ -366,7 +366,7 @@ void sensor1_callback(const velo2cam_calibration::ClusterCentroids::ConstPtr sen
 
   if(DEBUG) ROS_INFO("[V2C] sensor1");
 
-  for(vector<pcl::PointXYZ>::iterator it=sensor1_vector.begin(); it<sensor1_vector.end(); it++){
+  for(vector<pcl::PointXYZ>::iterator it=sensor1_vector.begin(); it<sensor1_vector.end(); ++it){
     if (DEBUG) cout << "l" << it - sensor1_vector.begin() << "="<< "[" << (*it).x << " " << (*it).y << " " << (*it).z << "]" << endl;
   }
 
@@ -460,7 +460,7 @@ void sensor2_callback(velo2cam_calibration::ClusterCentroids::ConstPtr sensor2_c
 
   if(DEBUG) ROS_INFO("[V2C] sensor2");
 
-  for(vector<pcl::PointXYZ>::iterator it=sensor2_vector.begin(); it<sensor2_vector.end(); it++){
+  for(vector<pcl::PointXYZ>::iterator it=sensor2_vector.begin(); it<sensor2_vector.end(); ++it){
     if (DEBUG) cout << "c" << it - sensor2_vector.begin() << "="<< "[" << (*it).x << " " << (*it).y << " " << (*it).z << "]"<<endl;
   }
 
