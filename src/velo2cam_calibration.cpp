@@ -375,7 +375,7 @@ void sensor1_callback(const velo2cam_calibration::ClusterCentroids::ConstPtr sen
       calibrateExtrinsics(sensor1_count);
       return;
     }else{
-      if (tf_sensor1_sensor2.frame_id_ != ""){
+      if (tf_sensor1_sensor2.frame_id_ != "" && tf_sensor1_sensor2.child_frame_id_ != ""){
         static tf::TransformBroadcaster br;
         tf_sensor1_sensor2.stamp_ = ros::Time::now();
         if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);
@@ -387,9 +387,11 @@ void sensor1_callback(const velo2cam_calibration::ClusterCentroids::ConstPtr sen
   if(sensor1Received && sensor2Received){
     calibrateExtrinsics();
   }else{
-    static tf::TransformBroadcaster br;
-    tf_sensor1_sensor2.stamp_ = ros::Time::now();
-    if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);
+    if (tf_sensor1_sensor2.frame_id_ != "" && tf_sensor1_sensor2.child_frame_id_ != ""){
+      static tf::TransformBroadcaster br;
+      tf_sensor1_sensor2.stamp_ = ros::Time::now();
+      if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);
+    }
   }
 }
 
@@ -469,7 +471,7 @@ void sensor2_callback(velo2cam_calibration::ClusterCentroids::ConstPtr sensor2_c
       calibrateExtrinsics(sensor2_count);
       return;
     }else{
-      if (tf_sensor1_sensor2.frame_id_ != ""){
+      if (tf_sensor1_sensor2.frame_id_ != "" && tf_sensor1_sensor2.child_frame_id_ != ""){
         static tf::TransformBroadcaster br;
         tf_sensor1_sensor2.stamp_ = ros::Time::now();
         if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);
@@ -482,9 +484,11 @@ void sensor2_callback(velo2cam_calibration::ClusterCentroids::ConstPtr sensor2_c
     if(DEBUG) ROS_INFO("[V2C] Calibrating...");
     calibrateExtrinsics();
   }else{
-    static tf::TransformBroadcaster br;
-    tf_sensor1_sensor2.stamp_ = ros::Time::now();
-    if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);
+    if (tf_sensor1_sensor2.frame_id_ != "" && tf_sensor1_sensor2.child_frame_id_ != ""){
+      static tf::TransformBroadcaster br;
+      tf_sensor1_sensor2.stamp_ = ros::Time::now();
+      if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);
+    }
   }
 }
 
