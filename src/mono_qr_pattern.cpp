@@ -162,7 +162,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
 
   if(ids.size()==4){
     // Estimate 3D position of the markers
-    vector< Vec3d > rvecs, tvecs;
+    vector< Vec3f > rvecs, tvecs;
     cv::aruco::estimatePoseSingleMarkers(corners, marker_size_, cameraMatrix, distCoeffs, rvecs, tvecs);
 
     // Draw markers' axis and centers in color image (Debug purposes)
@@ -178,8 +178,8 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
       qr_center.y = y;
       qr_center.z = z;
       qr_cloud->push_back(qr_center);
-      cv::Point3d pt_cv(x, y, z);
-      cv::Point2d uv;
+      cv::Point3f pt_cv(x, y, z);
+      cv::Point2f uv;
       uv = cam_model_.project3dToPixel(pt_cv);
 //      cout << "Center at: " << uv << endl;
 
@@ -198,7 +198,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
       // Rotate pattern plane to face XY plane so that we can work in 2D coords
       pcl::PointCloud<pcl::PointXYZ>::Ptr xy_cloud(new pcl::PointCloud<pcl::PointXYZ>);
       pcl::PointCloud<pcl::PointXYZ>::Ptr centers_xy_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-      Eigen::Vector3d xy_plane_normal_vector, floor_plane_normal_vector;
+      Eigen::Vector3f xy_plane_normal_vector, floor_plane_normal_vector;
       xy_plane_normal_vector[0] = 0.0;
       xy_plane_normal_vector[1] = 0.0;
       xy_plane_normal_vector[2] = 1.0;
@@ -207,7 +207,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
       floor_plane_normal_vector[1] = normal[1];
       floor_plane_normal_vector[2] = normal[2];
 
-      Eigen::Affine3d rotation = getRotationMatrix(floor_plane_normal_vector, xy_plane_normal_vector);
+      Eigen::Affine3f rotation = getRotationMatrix(floor_plane_normal_vector, xy_plane_normal_vector);
       pcl::transformPointCloud(*qr_cloud, *xy_cloud, rotation.inverse());
 
       // Order QR centers in 2D by comparing their relative position to their centroid
@@ -284,8 +284,8 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
 
       if(DEBUG) { // Draw centers
         for(int i=0; i <16; i++){
-          cv::Point3d pt_circle1(centers_cloud->at(i).x, centers_cloud->at(i).y, centers_cloud->at(i).z);
-          cv::Point2d uv_circle1;
+          cv::Point3f pt_circle1(centers_cloud->at(i).x, centers_cloud->at(i).y, centers_cloud->at(i).z);
+          cv::Point2f uv_circle1;
           uv_circle1 = cam_model_.project3dToPixel(pt_circle1);
           circle(imageCopy, uv_circle1, 2, Scalar(255, 0, 255), -1);
         }
