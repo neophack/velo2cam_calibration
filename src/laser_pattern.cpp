@@ -23,6 +23,8 @@
 */
 
 #define PCL_NO_PRECOMPILE
+#define TARGET_NUM_CIRCLES 4
+#define DEBUG 1
 
 #include <ros/ros.h>
 #include "ros/package.h"
@@ -58,8 +60,125 @@
 #include "velo2cam_utils.h"
 #include <velo2cam_calibration/ClusterCentroids.h>
 
+#include <algorithm>
+#include <math.h>
+#include <iostream>
+#include <string>
+
 using namespace std;
 using namespace sensor_msgs;
+
+double horizontal_distance = 0.50, vertical_distance = 0.40, diagonal = 0.64;
+double perimeter = 2*horizontal_distance+2*vertical_distance;
+
+class Square{
+private:
+  // SquareVertex _vertices [4];
+  pcl::PointXYZ _center;
+  std::vector<pcl::PointXYZ> _candidates;
+
+
+public:
+  Square(std::vector<pcl::PointXYZ> candidates){
+    _candidates = candidates;
+
+    // Compute candidates centroid
+    for (int i = 0; i < candidates.size(); ++i){
+      _center.x += candidates[i].x;
+      _center.y += candidates[i].y;
+      _center.z += candidates[i].z;
+    }
+
+    _center.x /= candidates.size();
+    _center.y /= candidates.size();
+    _center.z /= candidates.size();
+  }
+
+  float distance(pcl::PointXYZ pt1, pcl::PointXYZ pt2){
+    return sqrt(pow(pt1.x-pt2.x, 2)+pow(pt1.y-pt2.y, 2)+pow(pt1.z-pt2.z, 2));
+  }
+
+  float perimeter(){ // TODO FIX It is assumed that _candidates are ordered, it shouldn't
+    float perimeter = 0;
+    for (int i = 0; i < 4; ++i){
+      perimeter+=distance(_candidates[i], _candidates[(i+1)%4]);
+    }
+    return perimeter;
+  }
+
+  pcl::PointXYZ at(int i){
+    assert(0<=i && i<4);
+    return _candidates[i];
+  }
+
+  bool is_valid(){
+    // Check if candidates are at +-5cm of target's diagonal/2 to their centroid
+    for (int i = 0; i < _candidates.size(); ++i){
+      float d = distance(_center, _candidates[i]);
+      if(fabs(d-diagonal/2.)>0.05){
+        return false;
+      }
+    }
+    // Check perimeter?
+
+    // Check width + height?
+    return true;
+  }
+};
+
+// class SquareVertex{
+// private:
+//   SquareVertex* _parent_neighbour;
+//   SquareVertex* _child_neighbour;
+//   pcl::PointXYZ _point;
+
+// public:
+//   SquareVertex(pcl::PointXYZ pt){
+//     _point = pt;
+//     _parent_neighbour = NULL;
+//     _child_neighbour = NULL;
+//   }
+
+//   void set_parent(SquareVertex* vertex){
+//     _parent_neighbour = vertex;
+//   }
+
+//   void set_child(SquareVertex* vertex){
+//     _child_neighbour = vertex;
+//   }
+// };
+
+void comb(int N, int K, std::vector<std::vector<int> > &groups){
+
+    int upper_factorial = 1;
+    int lower_factorial = 1;
+
+    for(int i=0; i<K; i++){
+      upper_factorial*=(N-i);
+      lower_factorial*=(K-i);
+    }
+    int n_permutations = upper_factorial/lower_factorial;
+
+    if(DEBUG) ROS_INFO("[Laser] %d centers found. Iterating over %d possible set of candidates", N, n_permutations);
+
+    std::string bitmask(K, 1); // K leading 1's
+    bitmask.resize(N, 0); // N-K trailing 0's
+
+    // print integers and permute bitmask
+    do {
+        std::vector<int> group;
+        for (int i = 0; i < N; ++i) // [0..N-1] integers
+        {
+            if (bitmask[i]){
+              group.push_back(i);
+            }
+        }
+        groups.push_back(group);
+    } while (std::prev_permutation(bitmask.begin(), bitmask.end()));
+
+    assert(groups.size() == n_permutations);
+}
+
 
 ros::Publisher cumulative_pub, centers_pub, pattern_pub, range_pub,
                coeff_pub, aux_pub, auxpoint_pub, debug_pub;
@@ -166,13 +285,13 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
   pcl::copyPointCloud<Velodyne::Point>(*edges_cloud, inliers2, *pattern_cloud);
 
 
-  // Remove kps not belonging to circles by coords
+  // Remove kps not belonging to circles by coords TODO CHECK IF CAN BE REMOVED
   pcl::PointCloud<pcl::PointXYZ>::Ptr circles_cloud(new pcl::PointCloud<pcl::PointXYZ>);
   vector<vector<Velodyne::Point*> > rings2 = Velodyne::getRings(*pattern_cloud, rings_count_);
   int ringsWithCircle = 0;
 
   for (vector<vector<Velodyne::Point*> >::iterator ring = rings2.begin(); ring < rings2.end(); ++ring){
-    if(ring->size() < 3){
+    if(ring->size() < 1){ // TODO OLD CODE WAS 3
 //      ring->clear();
     }else{ // Remove first and last points in ring
       ringsWithCircle++;
@@ -192,6 +311,7 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
       }
     }
   }
+
 
 //  if(circles_cloud->points.size() > ringsWithCircle*4){
 //    ROS_WARN("[Laser] Too many outliers, not computing circles.");
@@ -297,6 +417,7 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
 
 
   pcl::PointCloud<pcl::PointXYZ>::Ptr found_centroid_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr centroid_candidates(new pcl::PointCloud<pcl::PointXYZ>);
 
   if(DEBUG) ROS_INFO("[Laser] Searching for points in cloud of size %lu", copy_cloud->points.size());
   while ((copy_cloud->points.size()+centroid_cloud_inliers.size()) > 3 && found_centers.size()<4 && copy_cloud->points.size()){
@@ -319,13 +440,15 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
     center.y = *(coefficients3->values.begin()+1);
     center.z = zcoord_xyplane;
 
+    centroid_candidates->push_back(center);
+
 
     found_centroid_cloud->push_back(center);
 
-
+    /* OLD CODE [COMMENTED]
     // Make sure there is no circle at the center of the pattern or far away from it
     double centroid_distance = sqrt(pow(fabs(edges_centroid.x-center.x),2) + pow(fabs(edges_centroid.y-center.y),2));
-     if(DEBUG) ROS_INFO("Distance to centroid %f", centroid_distance);
+    if(DEBUG) ROS_INFO("Distance to centroid %f", centroid_distance);
     if (centroid_distance < centroid_distance_min_){
       valid = false;
       for (pcl::PointCloud<pcl::PointXYZ>::iterator pt = circle_cloud->points.begin(); pt < circle_cloud->points.end(); ++pt){
@@ -355,6 +478,7 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
 //      }
 //      // if(DEBUG) ROS_INFO("Remaining inliers %lu", centroid_cloud_inliers.size());
     }
+    //*/  
 
     edges_centroid.z = zcoord_xyplane;
     found_centroid_cloud->push_back(edges_centroid);
@@ -364,6 +488,7 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
     range_ros2.header = laser_cloud->header;
     debug_pub.publish(range_ros2);
 
+    /* OLD CODE [COMMENTED]
     if (valid){
       // if(DEBUG) ROS_INFO("Valid circle found");
       std::vector<float> found_center;
@@ -373,6 +498,7 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
       found_centers.push_back(found_center);
       // if(DEBUG) ROS_INFO("Remaining points in cloud %lu", copy_cloud->points.size());
     }
+    //*/
 
     // Remove inliers from pattern cloud to find next circle
     extract.setNegative (true);
@@ -383,6 +509,76 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
     if(DEBUG) ROS_INFO("[Laser] Remaining points in cloud %lu", copy_cloud->points.size());
   }
 
+
+  if (centroid_candidates->size()<4){
+    ROS_WARN("[Laser] Not enough centers: %ld", centroid_candidates->size());
+    return;
+  }
+
+  /**
+    At this point, circles' center candidates have been computed (found_centers). Now we need to select
+    the set of 4 candidates that best fit the calibration target geometry. For that, the following steps
+    are followed:
+      1) Create a cloud with 4 points representing the exact geometry of the calibration target
+      2) For each possible set of 4 points:
+        2.1) Rotate cloud to lay in XY plane
+        2.2) 
+  **/
+
+  std::vector<std::vector<int> > groups;
+  comb(centroid_candidates->size(), TARGET_NUM_CIRCLES, groups);
+  double groups_scores [groups.size()]; // -1: invalid; 0-1 normalized score
+  for (int i = 0; i < groups.size(); ++i){
+    std::vector<pcl::PointXYZ> candidates;
+    // Build candidates set
+    for (int j = 0; j < groups[i].size(); ++j){
+      pcl::PointXYZ center;
+      center.x = centroid_candidates->at(groups[i][j]).x;
+      center.y = centroid_candidates->at(groups[i][j]).y;
+      center.z = centroid_candidates->at(groups[i][j]).z;
+      candidates.push_back(center);
+    }
+
+    // Compute candidates score
+    Square square_candidate(candidates);
+    groups_scores[i] = square_candidate.is_valid() ? 1.0 : -1; // -1 when it's not valid, 1 otherwise
+  }
+
+  int best_candidate_idx = -1;
+  double best_candidate_score = -1;
+  for (int i = 0; i < groups.size(); ++i){
+    if(best_candidate_score == 1 && groups_scores[i] == 1){
+      ROS_ERROR("More than one set of candidates fit target's geometry. Please, make sure your parameters are well set. Exiting callback");
+      return;
+    }
+    if (groups_scores[i]>best_candidate_score){
+      best_candidate_score = groups_scores[i];
+      best_candidate_idx = i;
+    }
+  }
+
+  if (best_candidate_idx==-1){
+    ROS_WARN("[Laser] Unable to find a candidate set that matches target's geometry");
+    return;
+  }
+
+  // Build selected centers set TODO WARNING! This replaces center selection algorithm!!
+  std::vector<pcl::PointXYZ> selected_centers;
+  for (int j = 0; j < groups[best_candidate_idx].size(); ++j){
+    selected_centers.push_back(centroid_candidates->at(groups[best_candidate_idx][j]));
+
+    pcl::PointXYZ center_rotated_back = pcl::transformPoint(centroid_candidates->at(groups[best_candidate_idx][j]), rotation.inverse());
+    center_rotated_back.x = (- coefficients->values[1] * center_rotated_back.y - coefficients->values[2] * center_rotated_back.z - coefficients->values[3])/coefficients->values[0];
+    cumulative_cloud->push_back(center_rotated_back); // Build selected centers set TODO WARNING! This replaces center selection algorithm!!
+  }
+
+  sensor_msgs::PointCloud2 ros_pointcloud;
+  pcl::toROSMsg(*cumulative_cloud, ros_pointcloud);
+  ros_pointcloud.header = laser_cloud->header;
+  cumulative_pub.publish(ros_pointcloud);
+  // END OF NEW CODE 
+
+  /* OLD CODE 
   if(found_centers.size() >= min_centers_found_ && found_centers.size() < 5){
     for (std::vector<std::vector<float> >::iterator it = found_centers.begin(); it < found_centers.end(); ++it){
       pcl::PointXYZ center;
@@ -402,7 +598,7 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
     ROS_WARN("[Laser] Not enough centers: %ld", found_centers.size());
     return;
   }
-
+  */
   circle_cloud.reset();
   copy_cloud.reset(); // Free memory
   cloud_f.reset(); // Free memory
@@ -480,7 +676,7 @@ int main(int argc, char **argv){
 
   nh_.param("cluster_size", cluster_size_, 0.02);
   nh_.param("min_centers_found", min_centers_found_, 4);
-  nh_.param("rings_count", rings_count_, 16);
+  nh_.param("rings_count", rings_count_, 64);
 
   nFrames = 0;
   cumulative_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
