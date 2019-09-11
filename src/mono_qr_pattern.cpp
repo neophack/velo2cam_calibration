@@ -162,7 +162,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
 
   if(ids.size()==4){
     // Estimate 3D position of the markers
-    vector< Vec3f > rvecs, tvecs;
+    vector< Vec3d > rvecs, tvecs;
     cv::aruco::estimatePoseSingleMarkers(corners, marker_size_, cameraMatrix, distCoeffs, rvecs, tvecs);
 
     // Draw markers' axis and centers in color image (Debug purposes)
