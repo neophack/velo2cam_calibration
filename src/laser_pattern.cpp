@@ -24,7 +24,6 @@
 
 #define PCL_NO_PRECOMPILE
 #define TARGET_NUM_CIRCLES 4
-#define DEBUG 1
 
 #include <ros/ros.h>
 #include "ros/package.h"
@@ -611,7 +610,7 @@ void callback(const PointCloud2::ConstPtr& laser_cloud){
   m_coeff.header = laser_cloud->header;
   coeff_pub.publish(m_coeff);
 
-  ROS_INFO("[Laser] %d/%d frames: %ld pts in cloud", clouds_used_, clouds_proc_, cumulative_cloud->points.size());
+  if(DEBUG) ROS_INFO("[Laser] %d/%d frames: %ld pts in cloud", clouds_used_, clouds_proc_, cumulative_cloud->points.size());
 
   // Create cloud for publishing centers
   pcl::PointCloud<pcl::PointXYZ>::Ptr centers_cloud(new pcl::PointCloud<pcl::PointXYZ>);

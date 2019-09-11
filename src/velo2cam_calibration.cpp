@@ -24,8 +24,6 @@
 
 #define PCL_NO_PRECOMPILE
 
-#define DEBUG
-
 #include "velo2cam_calibration/ClusterCentroids.h"
 
 #include <vector>
@@ -246,14 +244,22 @@ void calibrateExtrinsics(int seek_iter = -1){
   tf::Quaternion tfqt;
   tf3d.getRotation(tfqt);
 
+  string sensor1_final_transformation_frame = sensor1_frame_id;
+  if(is_sensor1_cam) {
+    sensor1_final_transformation_frame = sensor1_rotated_frame_id;
+  }
+  string sensor2_final_transformation_frame = sensor2_frame_id;
+  if(is_sensor2_cam) {
+    sensor2_final_transformation_frame = sensor2_rotated_frame_id;
+  }
   #ifdef TF2
 
   static tf2_ros::TransformBroadcaster br;
   geometry_msgs::TransformStamped transformStamped;
 
   transformStamped.header.stamp = ros::Time::now();
-  transformStamped.header.frame_id = sensor1_frame_id;
-  transformStamped.child_frame_id = sensor2_rotated_frame_id;
+  transformStamped.header.frame_id = sensor1_final_transformation_frame;
+  transformStamped.child_frame_id = sensor2_final_transformation_frame;
   transformStamped.transform.translation.x = final_trans(0,3);
   transformStamped.transform.translation.y = final_trans(1,3);
   transformStamped.transform.translation.z = final_trans(2,3);
@@ -275,7 +281,7 @@ void calibrateExtrinsics(int seek_iter = -1){
   #endif
 
   static tf::TransformBroadcaster br;
-  tf_sensor1_sensor2 = tf::StampedTransform(transf, ros::Time::now(), sensor1_frame_id, sensor2_rotated_frame_id);
+  tf_sensor1_sensor2 = tf::StampedTransform(transf, ros::Time::now(), sensor1_final_transformation_frame, sensor2_final_transformation_frame);
   if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);
 
   tf::Transform inverse = tf_sensor1_sensor2.inverse();
@@ -300,9 +306,8 @@ void calibrateExtrinsics(int seek_iter = -1){
 }
 
 void sensor1_callback(const velo2cam_calibration::ClusterCentroids::ConstPtr sensor1_centroids){
-  if(DEBUG) ROS_INFO("sensor1 pattern ready!");
-  ROS_INFO("sensor1 pattern ready!");
   sensor1_frame_id = sensor1_centroids->header.frame_id;
+  if(DEBUG) ROS_INFO("sensor1 (%s) pattern ready!", sensor1_frame_id);
 
   if (is_sensor1_cam){
     std::ostringstream sstream;
@@ -396,9 +401,8 @@ void sensor1_callback(const velo2cam_calibration::ClusterCentroids::ConstPtr sen
 }
 
 void sensor2_callback(velo2cam_calibration::ClusterCentroids::ConstPtr sensor2_centroids){
-   if(DEBUG) ROS_INFO("sensor2 pattern ready!");
-   ROS_INFO("sensor2 pattern ready!");
   sensor2_frame_id = sensor2_centroids->header.frame_id;
+  if(DEBUG) ROS_INFO("sensor2 (%s) pattern ready!", sensor2_frame_id);
 
   if (is_sensor2_cam){
     std::ostringstream sstream;
