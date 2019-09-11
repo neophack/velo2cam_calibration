@@ -2,9 +2,25 @@
 
     <arg name="stdout" default="screen" />
 
-    <node pkg="velo2cam_calibration" type="mono_qr_pattern" name="mono_qr_pattern" output="screen">
-        <param name="image_topic" value="/right_camera/image_rect_color" />
-        <param name="cinfo_topic" value="/right_camera/camera_info" />
+    <!--<node pkg="velo2cam_calibration" type="mono_qr_pattern" name="mono_qr_pattern" output="screen">-->
+        <!--<param name="image_topic" value="/right_camera/image_rect_color" />-->
+        <!--<param name="cinfo_topic" value="/right_camera/camera_info" />-->
+    <!--</node>-->
+
+    <arg name="marker_size" value="0.2"/>
+    <arg name="delta_x_marker_circle" value="0.30"/>
+    <arg name="delta_y_marker_circle" value="0.15"/>
+    <arg name="delta_x_centers" value="0.5"/>
+    <arg name="delta_y_centers" value="0.4"/>
+
+    <node pkg="velo2cam_calibration" type="mono_qr_pattern" name="mono_qr_pattern" output="$(arg stdout)">
+        <param name="image_topic" value="/stereo_camera/left/image_rect_color" />
+        <param name="cinfo_topic" value="/stereo_camera/left/camera_info" />
+        <param name="marker_size" value="$(arg marker_size)"/>
+        <param name="delta_x_marker_circle" value="$(arg delta_x_marker_circle)"/>
+        <param name="delta_y_marker_circle" value="$(arg delta_y_marker_circle)"/>
+        <param name="delta_x_centers" value="$(arg delta_x_centers)"/>
+        <param name="delta_y_centers" value="$(arg delta_y_centers)"/>
     </node>
     
     <node pkg="tf" type="static_transform_publisher" name="camera_ros_tf" args="0 0 0 -1.57079632679 0 -1.57079632679 rotated_right_camera right_camera 10"/>
