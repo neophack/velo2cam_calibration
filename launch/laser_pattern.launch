@@ -41,6 +41,7 @@
       circle_radius: 0.12
       passthrough_radius_min: 1.0
       passthrough_radius_max: 6.0
+      rings_count: 32
     </rosparam>
   </node>
 
